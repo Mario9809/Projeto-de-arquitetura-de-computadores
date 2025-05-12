@@ -1,83 +1,214 @@
-ORG 00H              ; Início do programa
+ORG 00H
 
-MOV 30H, #00H        ; indice_seq = 0 (índice da sequência gerada)
-MOV 31H, #00H        ; indice_jogador = 0 (índice da sequência digitada)
-MOV 32H, #00H        ; contador_acertos = 0 (contador de acertos)
-MOV 33H, #00H        ; erro_detectado = 0 (0 = sem erro, 1 = erro ocorreu)
-MOV 34H, #01H        ; nivel = 1 (nível inicial)
+MOV 30H, #00H ; índice da sequência gerada
+MOV 31H, #00H ; índice da jogada do usuário
+MOV 32H, #00H ; contador de acertos
+MOV 33H, #00H ; erro detectado (0 = não, 1 = sim)
+MOV 34H, #01H ; nível inicial (1)
 
-
-MOV P1, #00H         ; Porta P1 (LEDs) – Inicializa LEDs apagados
-MOV P2, #00H         ; Porta P2 (LCD) – Inicializa LCD apagado
-MOV P3, #0FH         ; Porta P3 (Keypad 4x3) – Colunas em P3.0 a P3.2, Linhas em P3.4 a P3.7
+MOV P1, #00H  ; zera os LEDs
+MOV P2, #00H  ; zera o display LCD
+MOV P3, #0FH  ; configura o teclado
 
 ACALL lcd_init
 ACALL lcd_clear
-MOV DPTR, #msg_boas_vindas  ; Exibe a mensagem de boas-vindas
+MOV DPTR, #msg_boas_vindas
 ACALL lcd_display_msg
-ACALL delay_long           ; Mantém a mensagem por 2 segundos
+ACALL delay_long
 
 gerar_sequencia:
-    MOV A, 34H             ; Carrega o nível atual
-    MOV B, A               ; Usa o nível como base para a quantidade de LEDs a acender (número de LEDs por nível)
+    MOV A, 34H
+    MOV B, A
+    ADD A, #2  ; nível 1 → 3 LEDs, nível 2 → 4 LEDs, etc.
+    MOV 35H, A ; quantidade de LEDs deste nível
 
-MOV R0, #00H           ; R0 irá armazenar a sequência (como LED aceso)
-MOV R1, #00H           ; R1 será o índice dos LEDs a acender
-
+MOV R0, #40H ; endereço base para salvar a sequência
+MOV R1, #00H
 
 acender_leds:
-    MOV A, R1              ; Carrega o índice do LED
-    MOV P1, A              ; Acende o LED correspondente
-    ACALL delay_curto      ; Aguarda um pequeno intervalo
-    MOV P1, #00H           ; Apaga o LED
-    INC R1                 ; Avança para o próximo LED
     MOV A, R1
-    CMP A, B               ; Compara o número de LEDs acesos com o nível
-    JNZ acender_leds       ; Repete enquanto o número de LEDs não atingir o valor do nível
+    MOV P1, A  ; Acende o LED com índice R1 (0, 1, 2, ...)
+    ACALL delay_curto
+    MOV P1, #00H
 
-    ; Agora, temos que comparar a sequência gerada com o que foi digitado
-    MOV R1, #00H           ; Limpa o índice de comparação
-    MOV 31H, #00H          ; Limpa o índice da sequência digitada pelo jogador
+    MOV @R0, A  ; Armazena a posição do LED aceso
+    INC R0
+    INC R1
 
-esperar_entrada:
-    ACALL ler_teclado       ; Função que lê a tecla pressionada
-    MOV A, R1              ; Carrega o LED pressionado
-    MOV P1, A              ; Acende o LED correspondente
-    ACALL delay_curto      ; Aguarda um pequeno intervalo
-    MOV P1, #00H           ; Apaga o LED
-    INC R1                 ; Avança para o próximo LED
     MOV A, R1
-    MOV B, 34H             ; Número de LEDs a serem comparados
-    CMP A, B               ; Verifica se o número de LEDs digitados é igual ao nível
-    JNZ esperar_entrada    ; Se ainda não acertou todos os LEDs, repete
+    MOV B, 35H
+    CJNE A, B, acender_leds
 
-verificar_acertos:
-    MOV A, 30H             ; Índice da sequência gerada
-    MOV B, 31H             ; Índice da sequência digitada
-    CMP A, B               ; Verifica se as sequências batem
-    JZ acerto              ; Se as sequências são iguais, acerto
-    MOV 33H, #01H          ; Caso contrário, houve erro
-    ACALL exibir_erro      ; Função que exibe mensagem de erro
-    SJMP fim_jogo
+MOV 31H, #00H  ; zera índice do jogador
+MOV 32H, #00H  ; zera contador de acertos
+MOV R0, #40H   ; ponteiro da sequência
 
-acerto:
-    MOV 32H, #00H          ; Zera o contador de acertos
-    MOV 33H, #00H          ; Zera o erro
-    ACALL proximo_nivel    ; Função para ir para o próximo nível
+leitura_teclado:
+    ACALL ler_tecla
+    MOV A, 31H
+    MOV R1, A
+    MOV A, tecla_lida  ; valor pressionado
+    MOV B, @R0          ; valor da sequência esperada
+    CJNE A, B, erro
 
-fim_jogo:
-    ; Exibe a mensagem de fim de jogo e retorna ao início
+    INC R0
+    INC 31H
+    INC 32H
 
-proximo_nivel:
-    INC 34H                ; Aumenta o nível
-    MOV A, 34H
-    CMP A, #06H            ; Checa se o nível é maior que 5
-    JZ jogo_completo       ; Se chegou ao nível 6, jogo completo
-    SJMP gerar_sequencia   ; Volta para gerar sequência do próximo nível
+    MOV A, 32H
+    MOV B, 35H
+    CJNE A, B, leitura_teclado
 
-jogo_completo:
-    ; Exibe a mensagem de vitória e reinicia o jogo
-
+ACALL lcd_clear
+MOV DPTR, #msg_proximo_nivel
+ACALL lcd_display_msg
 ACALL delay_long
-SJMP gerar_sequencia
+
+INC 34H
+MOV A, 34H
+CJNE A, #06, gerar_sequencia
+
+
+erro:
+MOV 33H, #01H
+ACALL lcd_clear
+MOV DPTR, #msg_fim
+ACALL lcd_display_msg
+SJMP $
+
+
+vitoria:
+ACALL lcd_clear
+MOV DPTR, #msg_vitoria
+ACALL lcd_display_msg
+SJMP $
+
+; Função de leitura do teclado 4x3
+ler_tecla:
+    ; Função para ler a tecla pressionada no teclado 4x3
+    ; Configura as colunas para alta impedância (não ativa nenhuma coluna por enquanto)
+    MOV P3, #0F0H   ; Colunas P3.0 a P3.2 serão usadas como saída, e as linhas como entrada (P3.4 a P3.7)
+    
+    ; Varre as colunas do teclado para detectar a tecla pressionada
+    MOV R0, #00H      ; Inicializa R0 com 0, ele será usado para verificar a coluna
+    MOV R1, #01H      ; Inicializa R1 para os valores das linhas (Linhas 1, 2, 3)
+    
+varre_colunas:
+    ; Limpa todos os bits das colunas
+    MOV P3, #0F0H    ; Reseta o valor das colunas
+    ; Ativa a coluna correspondente
+    MOV A, R0
+    MOV P3, A        ; P3.0 a P3.2 são as colunas, P3.4 a P3.7 são as linhas
+
+    ; Verifica as 4 linhas para ver se alguma linha foi pressionada
+    MOV A, P3        ; Lê o valor das linhas (P3.4 a P3.7)
+    ANL A, #0F0H     ; Mascara para pegar apenas as linhas (P3.4 a P3.7)
+
+    ; Se alguma linha for detectada, a tecla foi pressionada
+    CJNE A, #0F0H, tecla_detectada
+
+    ; Se não detectou, passa para a próxima coluna
+    INC R0           ; Avança para a próxima coluna
+    MOV A, R0
+    CJNE A, #03, varre_colunas ; Se não terminou de varrer as 3 colunas, vai para a próxima coluna
+
+    RET               ; Se nenhuma tecla for pressionada, retorna
+
+tecla_detectada:
+    ; Identifica qual tecla foi pressionada
+    MOV A, R1         ; R1 guarda a linha da tecla pressionada
+    MOV B, R0         ; R0 guarda a coluna da tecla pressionada
+
+    ; Agora, R1 (linha) e R0 (coluna) têm os valores correspondentes
+    ; Usamos esses valores para mapear a tecla pressionada
+
+    ; O mapeamento das teclas:
+    ; Linha 1: 1, 2, 3
+    ; Linha 2: 4, 5, 6
+    ; Linha 3: 7, 8, 9
+    ; Linha 4: *, 0, #
+
+    ; Verifica a linha e a coluna e mapeia a tecla
+    MOV A, R1
+    MOV B, R0
+    ; Se a linha for 1
+    CJNE A, #01, linha_2
+    ; Se a coluna for 0
+    CJNE B, #00, linha_1_coluna_2
+    MOV tecla_lida, #01H   ; Tecla 1
+    RET
+
+linha_1_coluna_2:
+    CJNE B, #01, linha_1_coluna_3
+    MOV tecla_lida, #02H   ; Tecla 2
+    RET
+
+linha_1_coluna_3:
+    CJNE B, #02, linha_1_coluna_4
+    MOV tecla_lida, #03H   ; Tecla 3
+    RET
+
+linha_1_coluna_4:
+    CJNE B, #03, linha_2
+    MOV tecla_lida, #0AH   ; Tecla * (asterisco)
+    RET
+
+linha_2:
+    CJNE A, #02, linha_3
+    ; Verifica as colunas para linha 2
+    CJNE B, #00, linha_2_coluna_2
+    MOV tecla_lida, #04H   ; Tecla 4
+    RET
+
+linha_2_coluna_2:
+    CJNE B, #01, linha_2_coluna_3
+    MOV tecla_lida, #05H   ; Tecla 5
+    RET
+
+linha_2_coluna_3:
+    CJNE B, #02, linha_2_coluna_4
+    MOV tecla_lida, #06H   ; Tecla 6
+    RET
+
+linha_2_coluna_4:
+    CJNE B, #03, linha_3
+    MOV tecla_lida, #0BH   ; Tecla # (jogo da velha)
+    RET
+
+linha_3:
+    CJNE A, #03, linha_4
+    ; Verifica as colunas para linha 3
+    CJNE B, #00, linha_3_coluna_2
+    MOV tecla_lida, #07H   ; Tecla 7
+    RET
+
+linha_3_coluna_2:
+    CJNE B, #01, linha_3_coluna_3
+    MOV tecla_lida, #08H   ; Tecla 8
+    RET
+
+linha_3_coluna_3:
+    CJNE B, #02, linha_3_coluna_4
+    MOV tecla_lida, #09H   ; Tecla 9
+    RET
+
+linha_3_coluna_4:
+    CJNE B, #03, linha_4
+    MOV tecla_lida, #0CH   ; Tecla 0
+    RET
+
+linha_4:
+    ; Linha 4 - Asterisco ou Jogo da velha
+    CJNE A, #04, fim
+    CJNE B, #00, fim
+    MOV tecla_lida, #0EH  ; Tecla *
+    RET
+
+fim:
+    RET
+
+msg_boas_vindas: DB 'MEMORIZE A SEQUENCIA', 0
+msg_proximo_nivel: DB 'PROXIMO NIVEL!', 0
+msg_fim: DB 'FIM DE JOGO!', 0
+msg_vitoria: DB 'VOCE VENCEU!', 0
 
