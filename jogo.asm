@@ -75,6 +75,23 @@ GERAR_LOOP:
     RET
 
 
+MOSTRAR_SEQUENCIA:
+    MOV R0, #SEQUENCIA     ; Começa no início do vetor
+    MOV R1, CONTADOR       ; Quantos números mostrar
+
+MOSTRAR_LOOP:
+    MOV A, @R0             ; Pega número da sequência
+    ACALL ACENDER_LED      ; Acende o LED correspondente
+    CALL DELAY_500MS       ; Espera um pouco
+    MOV P1, #0FFH          ; Apaga todos os LEDs
+    CALL DELAY_200MS       ; Espera de novo
+    INC R0 ;isso para ir percorrendo a sequência acendo o led de acordo com o número da vez
+    DJNZ R1, MOSTRAR_LOOP  ; Sempre vai decrementar 1 no valor que está no R1, que é o número do contador que é o número de leds da sequência, enquanto não zerar a função se repete.
+    RET
+
+
+
+
 
 
 
