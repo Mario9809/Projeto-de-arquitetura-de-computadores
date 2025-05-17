@@ -11,7 +11,7 @@ ACERTOS   EQU 52H   ; Contador de acertos
 
 ORG 100H 
 INICIO:
-MOV P1, #0FFH    ; Desliga todos os LEDs
+MOV P1, #0FFH   ; Desliga todos os LEDs
 MOV P3, #0FFH   ; Configura teclado
 MOV NIVEL, #1   ; Nível inicial
 
@@ -130,13 +130,38 @@ REPRODUZIR_SEQUENCIA:
 
 LER_PROXIMA_TECLA:
     CALL LER_TECLA       ; tecla lida em TECLA
-    CJNE TECLA, #0FFH, TECLA_LIDA ; se tecla válida, compara
+    CALL LER_TECLA       ; tecla lida em TECLA
+MOV A, TECLA         ; carrega tecla no acumulador para comparação
+CJNE A, #0FFH, TECLA_LIDA ; se tecla válida, compara
+SJMP LER_PROXIMA_TECLA    ; se nenhuma tecla, espera mais
+
+CALL LER_TECLA       ; tecla lida em TECLA
+MOV A, TECLA         ; carrega tecla no acumulador para comparação
+CJNE A, #0FFH, TECLA_LIDA ; se tecla válida, compara
+SJMP LER_PROXIMA_TECLA    ; se nenhuma tecla, espera mais
+
     SJMP LER_PROXIMA_TECLA ; se nenhuma tecla, continua esperando
 
 TECLA_LIDA:
     MOV A, TECLA
-    MOV R2, @R0          ; pega o valor da sequência no índice atual
-    CJNE A, R2, PERDEU   ; se não for igual, perdeu
+    MOV A, @R0
+	MOV R2, A
+
+MOV B, R2
+CLR C
+SUBB A, B
+JZ TECLA_OK
+SJMP PERDEU
+
+TECLA_OK:
+; aqui continua o código para tecla correta
+
+MOV B, R3
+CLR C
+SUBB A, B
+JZ TECLA_OK
+SJMP PERDEU
+
 
     INC ACERTOS
     INC R0
@@ -287,23 +312,3 @@ DELAY_200MS_LOOP3:
     DJNZ R3, DELAY_200MS_LOOP2
     DJNZ R4, DELAY_200MS_LOOP1
     RET
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
