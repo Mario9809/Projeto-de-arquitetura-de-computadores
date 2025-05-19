@@ -103,22 +103,23 @@ REPRODUZIR_SEQUENCIA:
     MOV R0, #SEQUENCIA
     MOV R1, CONTADOR
     MOV ACERTOS, #0
+
 LER_PROXIMA_TECLA:
     CALL LER_TECLA
     MOV A, TECLA
     CJNE A, #0FFH, TECLA_LIDA
     SJMP LER_PROXIMA_TECLA
+
 TECLA_LIDA:
-    MOV A, R0
-    MOV DPTR, #SEQUENCIA
-    MOVC A, @A+DPTR         ; A = SEQUENCIA[R0]
+    MOV A, @R0               ; Lê sequência da RAM
     MOV B, A
     MOV A, TECLA
-    CJNE A, B, PERDEU       ; Compara tecla pressionada com esperada
+    CJNE A, B, PERDEU
     INC ACERTOS
     INC R0
     DJNZ R1, LER_PROXIMA_TECLA
     RET
+
 
 ; Leitura do teclado matricial
 LER_TECLA:
