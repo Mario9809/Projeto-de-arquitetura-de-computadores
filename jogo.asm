@@ -124,50 +124,67 @@ TECLA_LIDA:
 ; Leitura do teclado matricial
 LER_TECLA:
     MOV TECLA, #0FFH
-    MOV P3, #0F7H ;Ativa a coluna 0
+
+    ; Ativa a coluna 0 (P3.0 = 0)
+    MOV P3, #0FEH
     CALL LER_LINHA_COLUNA
     CJNE A, #0FFH, RETORNA_TECLA
-    MOV P3, #0FBH
-    CALL LER_LINHA_COLUNA
-    CJNE A, #0FFH, AJUSTA_COLUNA_1
+
+    ; Ativa a coluna 1 (P3.1 = 0)
     MOV P3, #0FDH
     CALL LER_LINHA_COLUNA
+    CJNE A, #0FFH, AJUSTA_COLUNA_1
+
+    ; Ativa a coluna 2 (P3.2 = 0)
+    MOV P3, #0FBH
+    CALL LER_LINHA_COLUNA
     CJNE A, #0FFH, AJUSTA_COLUNA_2
+
     SJMP RETORNA_TECLA
+
+; Ajustes para identificar a coluna correta com base na linha
 AJUSTA_COLUNA_1:
-    ADD A, #3
+    ADD A, #3      ; Linha + 3 → segunda coluna
     SJMP RETORNA_TECLA
+
 AJUSTA_COLUNA_2:
-    ADD A, #6
+    ADD A, #6      ; Linha + 6 → terceira coluna
+
 RETORNA_TECLA:
     MOV TECLA, A
     RET
 
 ; Detecta qual linha do teclado foi pressionada
 LER_LINHA_COLUNA:
-    MOV A, P3
-    ANL A, #0F0H
-    CPL A
-    SWAP A
-    ANL A, #0FH
+    MOV A, P3          ; Lê o estado da porta
+    ANL A, #0F0H       ; Isola os bits das linhas (P3.4 a P3.7)
+    CPL A              ; Inverte, porque 0 indica tecla pressionada
+    SWAP A             ; Troca nibbles (torna mais fácil testar bit a bit)
+    ANL A, #0FH        ; Garante que só os 4 bits menos significativos ficam
+
     CJNE A, #01H, CHECA_LINHA_1
     MOV A, #0
     RET
+
 CHECA_LINHA_1:
     CJNE A, #02H, CHECA_LINHA_2
     MOV A, #1
     RET
+
 CHECA_LINHA_2:
     CJNE A, #04H, CHECA_LINHA_3
     MOV A, #2
     RET
+
 CHECA_LINHA_3:
     CJNE A, #08H, LINHA_NAO_ENCONTRADA
     MOV A, #3
     RET
+
 LINHA_NAO_ENCONTRADA:
-    MOV A, #0FFH
+    MOV A, #0FFH       ; Nenhuma tecla foi detectada
     RET
+
 
 ; Pisca todos os LEDs para indicar vitória
 PISCAR_LEDS:
