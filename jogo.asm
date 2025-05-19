@@ -1,277 +1,196 @@
-ORG 00H ;Definição do local de memória onde se inicia o programa
-LJMP INICIO ;Salto direto para o local do código onde se inicia a lógica do jogo
+ORG 00H
+LJMP INICIO                ; Salta para a rotina de inicialização em 100H
 
+; Endereços de variáveis globais na RAM interna
+NIVEL     EQU 30H           ; Armazena o nível atual do jogo
+SEQUENCIA EQU 40H           ; Início da memória para a sequência de teclas
+TECLA     EQU 50H           ; Armazena a tecla lida
+CONTADOR  EQU 51H           ; Quantidade de teclas a serem lidas/exibidas
+ACERTOS   EQU 52H           ; Contador de acertos do jogador
 
-;Parte do código onde se usa o EQU para colocar nomes nos endereços de memória para usá-los como se fossem variáveis
-NIVEL     EQU 30H   ; Nível atual (1-5)
-SEQUENCIA EQU 40H   ; Armazena a sequência (40H-4FH)
-TECLA     EQU 50H   ; Tecla pressionada
-CONTADOR  EQU 51H   ; Contador de LEDs
-ACERTOS   EQU 52H   ; Contador de acertos
-
-ORG 100H 
+ORG 100H
 INICIO:
-MOV P1, #0FFH   ; Desliga todos os LEDs
-MOV P3, #0FFH   ; Configura teclado
-MOV NIVEL, #1   ; Nível inicial
+    MOV P3, #0FFH           ; Configura P3 como entrada (leitura do teclado)
+    MOV NIVEL, #1           ; Inicia no nível 1
 
+NOVO_NIVEL:
+    MOV A, NIVEL
+    MOV P1, A               ; Exibe o nível atual nos LEDs (P1)
+    CALL DELAY_500MS
+    MOV P1, #0FFH           ; Apaga os LEDs
+    CALL DELAY_500MS
 
-;Lógica para todas vez que se entra em um nível inicial ou niveis acima
-NOVO_NIVEL: ;Label para marcar o local onde essa lógica acontece
-MOV A, NIVEL ;Move o valor do nivel para o acumulador
-MOV P1, A ;Move o valor do nivel que stá no acumulador para a porta P1, para então acender o LED correspondente ao número do nível
-CALL DELAY_500MS ;Delay para manter o LED ligado
-MOV P1, #00H ;Desliga o led
-CALL DELAY_500MS
+    MOV A, NIVEL
+    ADD A, #2
+    MOV CONTADOR, A         ; Define o número de teclas com base no nível
 
-MOV A, NIVEL
-ADD A, #2 ;Adiciona 2 ao nível. Isso define o tamanho da sequência que será gerada (nível 1 = 3 LEDs, nível 2 = 4 e por ai em diante)
-MOV CONTADOR, A ;Move o valor do número dea sequência para a variável contador
+    CALL GERAR_SEQUENCIA    ; Gera nova sequência pseudoaleatória
+    CALL MOSTRAR_SEQUENCIA  ; Mostra a sequência ao jogador
+    CALL REPRODUZIR_SEQUENCIA ; Lê a sequência digitada pelo jogador
 
+    MOV A, ACERTOS
+    CJNE A, CONTADOR, PERDEU ; Se não acertou tudo, vai para PERDEU
 
-;Linhas que irão chamar funções para o funcionamento do jogo em sí
-CALL GERAR_SEQUENCIA
-CALL MOSTRAR_SEQUENCIA
-CALL REPRODUZIR_SEQUENCIA
+    INC NIVEL               ; Passa para próximo nível
+    MOV A, NIVEL
+    CJNE A, #6, PROXIMO_NIVEL ; Se não chegou no nível 6, repete
 
-MOV A, ACERTOS ; Carrega no acumulador quantos acertos o jogador teve.
-CJNE A, CONTADOR, PERDEU ; Compara o valor dos acertos com a quantidade da sequência, se forem diferentes o jogador perde, então salta a função PERDEU
-
-;Caso não tenha ido para PERDEU, continua a percorrer o código indo para essa linha:
-INC NIVEL ;Incrementa 1 para o nível
-MOV A, NIVEL
-CJNE A, #6, PROXIMO_NIVEL
-
-
-;Se atingiu número 6 o código continua, e vai para essa parte
-CALL PISCAR_LEDS ;Vai para uma função que pisca os leds como sinal de vitória
-JMP INICIO        ; Salta diretamente para o inicio do jogo
+    CALL PISCAR_LEDS        ; Se chegou ao fim, pisca LEDs (vitória)
+    JMP INICIO              ; Reinicia o jogo
 
 PROXIMO_NIVEL:
-MOV P1, NIVEL
-CALL DELAY_500MS
-MOV P1, #00H
-CALL DELAY_500MS
-JMP NOVO_NIVEL
-
+    MOV P1, NIVEL           ; Exibe novo nível
+    CALL DELAY_500MS
+    MOV P1, #00H
+    CALL DELAY_500MS
+    JMP NOVO_NIVEL
 
 PERDEU:
-MOV P1, #0AAH    ; Pisca padrão 10101010, esse é sinal visual para indicar derrota
-CALL DELAY_1S
-MOV P1, #55H     ; Pisca padrão 01010101, esse é sinal visual para indicar derrota
-CALL DELAY_1S
-JMP INICIO       ; Como o jogador perdeu, irá Reiniciar o jogo
+    MOV P1, #0AAH           ; Padrão de falha
+    CALL DELAY_1S
+    MOV P1, #55H
+    CALL DELAY_1S
+    JMP INICIO              ; Reinicia o jogo
 
-
+; Gera uma sequência simples: 0,1,2,... (sem aleatoriedade real)
 GERAR_SEQUENCIA:
-    MOV ACERTOS, #0        ; Zera contador de acertos
-    MOV R0, #SEQUENCIA     ; Ponteiro para onde salvar a sequência
-    MOV R1, CONTADOR       ; Quantidade de números da sequência
-    MOV A, #0              ; Começa a sequência do 0
+    MOV ACERTOS, #0         ; Zera acertos
+    MOV R0, #SEQUENCIA
+    MOV R1, CONTADOR
+    MOV A, #0
 
 GERAR_LOOP:
-    MOV @R0, A             ; Salva o número atual no vetor
-    INC A                  ; Próximo número da sequência
-    INC R0                 ; Próxima posição no vetor
-    DJNZ R1, GERAR_LOOP    ; decrementa a quantidade de numeros da sequencia até zerar, enquanto não zerar repete
+    MOV @R0, A              ; Guarda valor em SEQUENCIA
+    INC A
+    INC R0
+    DJNZ R1, GERAR_LOOP
     RET
 
-
+; Mostra a sequência nos LEDs
 MOSTRAR_SEQUENCIA:
-    MOV R0, #SEQUENCIA     ; Começa no início do vetor
-    MOV R1, CONTADOR       ; Quantos números mostrar
+    MOV R0, #SEQUENCIA
+    MOV R1, CONTADOR
 
 MOSTRAR_LOOP:
-    MOV A, @R0             ; Pega número da sequência
-    ACALL ACENDER_LED      ; Acende o LED correspondente
-    CALL DELAY_500MS       ; Espera um pouco
-    MOV P1, #0FFH          ; Apaga todos os LEDs
-    CALL DELAY_200MS       ; Espera de novo
-    INC R0                 ; isso para ir percorrendo a sequência acendo o led de acordo com o número da vez
-    DJNZ R1, MOSTRAR_LOOP  ; Sempre vai decrementar 1 no valor que está no R1, que é o número do contador que é o número de leds da sequência, enquanto não zerar a função se repete.
+    MOV A, @R0              ; Carrega valor
+    ACALL ACENDER_LED       ; Acende LED correspondente
+    CALL DELAY_500MS
+    MOV P1, #0FFH           ; Apaga LEDs
+    CALL DELAY_200MS
+    INC R0
+    DJNZ R1, MOSTRAR_LOOP
     RET
 
-
-;Aqui acendemos os LEDs para isso usamos outros registradores, somente para acender os LEDs e saber quando parar
 ACENDER_LED:
-    ; Espera-se que o número do LED esteja no registrador A (0 a 7)
-
-    MOV R2, #01H   ; Começa com o bit 00000001
-    MOV A, R2
-RL A
-MOV R2, A
-MOV R3, A      ; Copia o número do LED para R3
-
+    MOV R2, #01H
+    MOV R3, A               ; A tem o índice do LED
 SHIFT_LOOP:
-    CJNE R3, #0, SHIFT    ; Se R3 não for 0, continua deslocando
+    CJNE R3, #0, SHIFT      ; Faz deslocamentos para posicionar LED
     SJMP FIM_ACENDER_LED
-
 SHIFT:
-   MOV A, R2
-RL A
-MOV R2, A
-
-    DEC R3      ; Decrementa o contador
+    MOV A, R2
+    RL A
+    MOV R2, A
+    DEC R3
     SJMP SHIFT_LOOP
-
 FIM_ACENDER_LED:
-   MOV P1, #0FFH   ; Apaga todos os LEDs (P1 é ativo em 0)
-   MOV P1, #0FFH   ; Apaga todos os LEDs (P1 é ativo em 0)
-
-    MOV P1, R2  ; Acende o LED correspondente
+    MOV P1, #0FFH
+    MOV P1, R2              ; Exibe LED
     RET
 
-
-; --- REPRODUZIR_SEQUENCIA ---
+; Lê e compara a sequência digitada
 REPRODUZIR_SEQUENCIA:
-    MOV R0, #SEQUENCIA   ; ponteiro da sequência
-    MOV R1, CONTADOR     ; quantidade de teclas a ler
-    MOV ACERTOS, #0      ; zera acertos
-
+    MOV R0, #SEQUENCIA
+    MOV R1, CONTADOR
+    MOV ACERTOS, #0
 LER_PROXIMA_TECLA:
-    CALL LER_TECLA       ; tecla lida em TECLA
-    CALL LER_TECLA       ; tecla lida em TECLA
-MOV A, TECLA         ; carrega tecla no acumulador para comparação
-CJNE A, #0FFH, TECLA_LIDA ; se tecla válida, compara
-SJMP LER_PROXIMA_TECLA    ; se nenhuma tecla, espera mais
-
-CALL LER_TECLA       ; tecla lida em TECLA
-MOV A, TECLA         ; carrega tecla no acumulador para comparação
-CJNE A, #0FFH, TECLA_LIDA ; se tecla válida, compara
-SJMP LER_PROXIMA_TECLA    ; se nenhuma tecla, espera mais
-
-    SJMP LER_PROXIMA_TECLA ; se nenhuma tecla, continua esperando
-
-TECLA_LIDA:
+    CALL LER_TECLA
     MOV A, TECLA
-    MOV A, @R0
-	MOV R2, A
-
-MOV B, R2
-CLR C
-SUBB A, B
-JZ TECLA_OK
-SJMP PERDEU
-
-TECLA_OK:
-; aqui continua o código para tecla correta
-
-MOV B, R3
-CLR C
-SUBB A, B
-JZ TECLA_OK
-SJMP PERDEU
-
-
+    CJNE A, #0FFH, TECLA_LIDA
+    SJMP LER_PROXIMA_TECLA
+TECLA_LIDA:
+    MOV A, R0
+    MOV DPTR, #SEQUENCIA
+    MOVC A, @A+DPTR         ; A = SEQUENCIA[R0]
+    MOV B, A
+    MOV A, TECLA
+    CJNE A, B, PERDEU       ; Compara tecla pressionada com esperada
     INC ACERTOS
     INC R0
     DJNZ R1, LER_PROXIMA_TECLA
-
     RET
 
-
-; --- LER_TECLA ---
-; Lê teclado matricial 4 linhas x 3 colunas no P3
-; Retorna tecla no endereço TECLA (0 a 11) ou 0xFF se nenhuma tecla
-; Mapeamento de teclas:
-; 0=1,1=2,2=3,3=4,4=5,5=6,6=7,7=8,8=9,9=10=*,10=0,11=#
-
+; Leitura do teclado matricial
 LER_TECLA:
-    MOV TECLA, #0FFH    ; Nenhuma tecla pressionada inicialmente
-
-    ; Coluna 0 ativa (bit 0 = 0)
-    MOV P3, #0F7H       ; 1111 0111
+    MOV TECLA, #0FFH
+    MOV P3, #0F7H
     CALL LER_LINHA_COLUNA
     CJNE A, #0FFH, RETORNA_TECLA
-
-    ; Coluna 1 ativa (bit 1 = 0)
-    MOV P3, #0FBH       ; 1111 1011
+    MOV P3, #0FBH
     CALL LER_LINHA_COLUNA
     CJNE A, #0FFH, AJUSTA_COLUNA_1
-
-    ; Coluna 2 ativa (bit 2 = 0)
-    MOV P3, #0FDH       ; 1111 1101
+    MOV P3, #0FDH
     CALL LER_LINHA_COLUNA
     CJNE A, #0FFH, AJUSTA_COLUNA_2
-
     SJMP RETORNA_TECLA
-
 AJUSTA_COLUNA_1:
-    ADD A, #3           ; offset coluna 1 = +3 teclas
+    ADD A, #3
     SJMP RETORNA_TECLA
-
 AJUSTA_COLUNA_2:
-    ADD A, #6           ; offset coluna 2 = +6 teclas
-
+    ADD A, #6
 RETORNA_TECLA:
     MOV TECLA, A
     RET
 
-
-; --- LER_LINHA_COLUNA ---
-; Supondo P3 bits 4 a 7 representam linhas
-; Se linha pressionada bit fica 0 (ativo baixo)
-; Retorna no acumulador A o número da linha (0 a 3) ou 0xFF se nenhuma
-
+; Detecta qual linha do teclado foi pressionada
 LER_LINHA_COLUNA:
     MOV A, P3
-    ANL A, #0F0H      ; máscara para linhas (bits 4 a 7)
-    CPL A             ; inverte bits para facilitar
-    SWAP A            ; troca nibble alto com baixo
-    ANL A, #0FH       ; pega apenas bits baixos (0 a 0x0F)
-    
-    ; Agora bits 0 a 3 indicam qual linha está pressionada
-    ; Checa linha 0
+    ANL A, #0F0H
+    CPL A
+    SWAP A
+    ANL A, #0FH
     CJNE A, #01H, CHECA_LINHA_1
     MOV A, #0
     RET
-
 CHECA_LINHA_1:
     CJNE A, #02H, CHECA_LINHA_2
     MOV A, #1
     RET
-
 CHECA_LINHA_2:
     CJNE A, #04H, CHECA_LINHA_3
     MOV A, #2
     RET
-
 CHECA_LINHA_3:
     CJNE A, #08H, LINHA_NAO_ENCONTRADA
     MOV A, #3
     RET
-
 LINHA_NAO_ENCONTRADA:
     MOV A, #0FFH
     RET
 
-
+; Pisca todos os LEDs para indicar vitória
 PISCAR_LEDS:
-    MOV R5, #6             ; Número de piscadas
-
+    MOV R5, #6
 PISCAR_LOOP:
-    MOV P1, #0FFH          ; Apaga todos LEDs (assumindo ativo em 0)
+    MOV P1, #0FFH
     ACALL DELAY_250MS
-    MOV P1, #00H           ; Acende todos LEDs
+    MOV P1, #00H
     ACALL DELAY_250MS
     DJNZ R5, PISCAR_LOOP
-
     RET
 
-
+; Delays
 DELAY_250MS:
-    MOV R4, #3
+    MOV R4, #1
 DELAY_250MS_LOOP1:
-    MOV R3, #250
+    MOV R3, #1
 DELAY_250MS_LOOP2:
-    MOV R2, #250
+    MOV R2, #1
 DELAY_250MS_LOOP3:
     DJNZ R2, DELAY_250MS_LOOP3
     DJNZ R3, DELAY_250MS_LOOP2
     DJNZ R4, DELAY_250MS_LOOP1
     RET
-
-
 
 DELAY_1S:
     ACALL DELAY_250MS
@@ -280,12 +199,10 @@ DELAY_1S:
     ACALL DELAY_250MS
     RET
 
-
 DELAY_2S:
     ACALL DELAY_1S
     ACALL DELAY_1S
     RET
-
 
 DELAY_5S:
     ACALL DELAY_1S
@@ -300,13 +217,12 @@ DELAY_500MS:
     ACALL DELAY_250MS
     RET
 
-
 DELAY_200MS:
-    MOV R4, #2
+    MOV R4, #1
 DELAY_200MS_LOOP1:
-    MOV R3, #250
+    MOV R3, #1
 DELAY_200MS_LOOP2:
-    MOV R2, #200
+    MOV R2, #1
 DELAY_200MS_LOOP3:
     DJNZ R2, DELAY_200MS_LOOP3
     DJNZ R3, DELAY_200MS_LOOP2
