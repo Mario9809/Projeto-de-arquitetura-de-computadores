@@ -123,7 +123,7 @@ TECLA_LIDA:
 ; Leitura do teclado matricial
 LER_TECLA:
     MOV TECLA, #0FFH
-    MOV P3, #0F7H
+    MOV P3, #0F7H ;Ativa a coluna 0
     CALL LER_LINHA_COLUNA
     CJNE A, #0FFH, RETORNA_TECLA
     MOV P3, #0FBH
