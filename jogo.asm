@@ -125,18 +125,18 @@ TECLA_LIDA:
 LER_TECLA:
     MOV TECLA, #0FFH
 
-    ; Ativa a coluna 0 (P3.0 = 0)
-    MOV P3, #0FEH
+    ; Ativa a coluna 0 (P0.0 = 0)
+    MOV P0, #0FEH
     CALL LER_LINHA_COLUNA
     CJNE A, #0FFH, RETORNA_TECLA
 
-    ; Ativa a coluna 1 (P3.1 = 0)
-    MOV P3, #0FDH
+    ; Ativa a coluna 1 (P0.1 = 0)
+    MOV P0, #0FDH
     CALL LER_LINHA_COLUNA
     CJNE A, #0FFH, AJUSTA_COLUNA_1
 
-    ; Ativa a coluna 2 (P3.2 = 0)
-    MOV P3, #0FBH
+    ; Ativa a coluna 2 (P0.2 = 0)
+    MOV P0, #0FBH
     CALL LER_LINHA_COLUNA
     CJNE A, #0FFH, AJUSTA_COLUNA_2
 
@@ -144,11 +144,11 @@ LER_TECLA:
 
 ; Ajustes para identificar a coluna correta com base na linha
 AJUSTA_COLUNA_1:
-    ADD A, #3      ; Linha + 3 → segunda coluna
+    ADD A, #1      ; Linha + 1 → segunda coluna
     SJMP RETORNA_TECLA
 
 AJUSTA_COLUNA_2:
-    ADD A, #6      ; Linha + 6 → terceira coluna
+    ADD A, #2      ; Linha + 2 → terceira coluna
 
 RETORNA_TECLA:
     MOV TECLA, A
@@ -156,34 +156,36 @@ RETORNA_TECLA:
 
 ; Detecta qual linha do teclado foi pressionada
 LER_LINHA_COLUNA:
-    MOV A, P3          ; Lê o estado da porta
-    ANL A, #0F0H       ; Isola os bits das linhas (P3.4 a P3.7)
+    MOV A, P0          ; Lê o estado da porta
+	SWAP A
+    ANL A, #0F0H       ; Isola os bits das linhas (P0.4 a P0.7)
     CPL A              ; Inverte, porque 0 indica tecla pressionada
     SWAP A             ; Troca nibbles (torna mais fácil testar bit a bit)
     ANL A, #0FH        ; Garante que só os 4 bits menos significativos ficam
 
     CJNE A, #01H, CHECA_LINHA_1
-    MOV A, #0
+    MOV A, #1
     RET
 
 CHECA_LINHA_1:
     CJNE A, #02H, CHECA_LINHA_2
-    MOV A, #1
+    MOV A, #4
     RET
 
 CHECA_LINHA_2:
     CJNE A, #04H, CHECA_LINHA_3
-    MOV A, #2
+    MOV A, #7
     RET
 
 CHECA_LINHA_3:
     CJNE A, #08H, LINHA_NAO_ENCONTRADA
-    MOV A, #3
+    MOV A, #10 ; que é na verdade é a tecla *
     RET
 
 LINHA_NAO_ENCONTRADA:
     MOV A, #0FFH       ; Nenhuma tecla foi detectada
     RET
+
 
 
 ; Pisca todos os LEDs para indicar vitória
